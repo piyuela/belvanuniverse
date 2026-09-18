@@ -58,6 +58,7 @@ const baseMomentPhotoPaths = [
   "/Photos/momentos/WhatsApp Image 2026-09-18 at 14.11.50.jpeg",
   "/Photos/momentos/WhatsApp Image 2026-09-18 at 14.12.17.jpeg",
 ];
+const normalizedBaseMomentPhotoPaths = baseMomentPhotoPaths.map((path) => path.replace("/Photos/", "/photos/"));
 const universePhotoPaths = [
   "/photos/1555A79D-08C2-4A81-A17A-11AEF4E98866.PNG",
   "/photos/15A9B9ED-DB97-436E-98C3-3665197CCFBB.PNG",
@@ -239,8 +240,9 @@ export default function Home() {
     "/Photos/momentos/WhatsApp Image 2026-09-18 at 14.54.41.jpeg",
   ];
   const insertPositions = [1, 9, 25, 33, 37, 57];
-  const momentPhotoPaths = insertMomentItems(baseMomentPhotoPaths, newMomentPhotos, insertPositions);
-  const momentCaptions = insertMomentItems(baseMomentCaptions, newMomentPhotos.map((_, index) => `Caption pendiente · Momento nuevo ${index + 1}`), insertPositions);
+  const normalizedNewMomentPhotos = newMomentPhotos.map((path) => path.replace("/Photos/", "/photos/"));
+  const momentPhotoPaths = insertMomentItems(normalizedBaseMomentPhotoPaths, normalizedNewMomentPhotos, insertPositions);
+  const momentCaptions = insertMomentItems(baseMomentCaptions, ["2022", "2023", "2024", "2025", "2026", "continuará"], insertPositions);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
