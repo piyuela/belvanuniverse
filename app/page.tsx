@@ -243,6 +243,20 @@ export default function Home() {
   const normalizedNewMomentPhotos = newMomentPhotos.map((path) => path.replace("/Photos/", "/photos/"));
   const momentPhotoPaths = insertMomentItems(normalizedBaseMomentPhotoPaths, normalizedNewMomentPhotos, insertPositions);
   const momentCaptions = insertMomentItems(baseMomentCaptions, ["2022", "2023", "2024", "2025", "2026", "continuará"], insertPositions);
+  const previousMoment = momentPhotoPaths[(momentSlide - 1 + momentPhotoPaths.length) % momentPhotoPaths.length];
+  const nextMoment = momentPhotoPaths[(momentSlide + 1) % momentPhotoPaths.length];
+  const followingMoment = momentPhotoPaths[(momentSlide + 2) % momentPhotoPaths.length];
+
+  useEffect(() => {
+    // Prepare nearby photos before a click, without downloading the entire gallery.
+    [nextMoment, previousMoment, followingMoment].forEach((src) => {
+      const image = new window.Image();
+      image.decoding = "async";
+      image.src = src;
+      // A failed preload must not prevent normal navigation or a later retry.
+      void image.decode().catch(() => {});
+    });
+  }, [nextMoment, previousMoment, followingMoment]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -317,7 +331,7 @@ export default function Home() {
 
       <section className="chapter universe-chapter" id="chapter-5"><div className="section-heading"><p className="eyebrow">Capítulo 05</p><h2>En otros universos<br /><em>también te elegiría</em></h2></div><div className="future-upload"><PhotoUpload multiple label="Agregar más recuerdos" detail="Puedes elegir varias fotos" onChange={(event) => { handleFiles(event, setUniversePhotos); setUniverseSlide(universePhotoPaths.length); }} /></div><div className="universe-carousel" onTouchStart={(event) => { event.currentTarget.dataset.startX = String(event.touches[0].clientX); }} onTouchEnd={(event) => { const startX = Number(event.currentTarget.dataset.startX); const distance = event.changedTouches[0].clientX - startX; if (Math.abs(distance) > 45) setUniverseSlide((current) => Math.min(Math.max(current + (distance < 0 ? 1 : -1), 0), universeGallery.length - 1)); }}><button className="carousel-arrow carousel-prev" onClick={() => setUniverseSlide((current) => (current - 1 + universeGallery.length) % universeGallery.length)} aria-label="Foto anterior">←</button><img src={universeGallery[universeSlide]} alt={universeCaptions[universeSlide] ?? `Recuerdo ${universeSlide + 1} de nuestra historia`} /><button className="carousel-arrow carousel-next" onClick={() => setUniverseSlide((current) => (current + 1) % universeGallery.length)} aria-label="Foto siguiente">→</button><div className="carousel-caption"><span>{String(universeSlide + 1).padStart(2, "0")} / {String(universeGallery.length).padStart(2, "0")}</span><p>{universeCaptions[universeSlide] ?? "Un recuerdo más de nosotros"}</p></div></div><div className="carousel-dots" aria-label="Seleccionar foto">{universeGallery.map((url, index) => <button key={url} className={index === universeSlide ? "is-active" : ""} onClick={() => setUniverseSlide(index)} aria-label={`Ver foto ${index + 1}`} />)}</div><ChapterFooter current={5} onNext={() => goTo(5)} total={6} /></section>
 
-      <section className="chapter song-chapter" id="chapter-6"><div className="section-heading"><p className="eyebrow">Capítulo 06</p><h2>La canción que<br /><em>suena a nosotras</em></h2></div><div className="record"><div className="record-label">B<br /><span>♡</span><br />V</div></div><div className="song-card"><span className="song-kicker">Nuestra canción</span><h3>Te volvería<br /><em>a elegir</em></h3><p>Una canción para todas las versiones de nuestra historia.</p><a className="song-link" href={songLink} target="_blank" rel="noreferrer">Escuchar en Mureka <span>↗</span></a><small>Se abrirá en una nueva pestaña</small></div><ChapterFooter current={6} onNext={() => goTo(0)} total={6} /></section>
+      <section className="chapter song-chapter" id="chapter-6"><div className="section-heading"><p className="eyebrow">Capítulo 06</p><h2>La canción que<br /><em>suena a nosotras</em></h2></div><div className="record"><div className="record-label"><span>B</span><span className="record-heart">♡</span><span>V</span></div></div><div className="song-card"><span className="song-kicker">Nuestra canción</span><h3>Te volvería<br /><em>a elegir</em></h3><p>Una canción para todas las versiones de nuestra historia.</p><a className="song-link" href={songLink} target="_blank" rel="noreferrer">Escuchar en Mureka <span>↗</span></a><small>Se abrirá en una nueva pestaña</small></div><ChapterFooter current={6} onNext={() => goTo(0)} total={6} /></section>
     </main>
   );
 }
