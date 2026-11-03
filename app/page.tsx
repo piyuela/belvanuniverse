@@ -99,17 +99,21 @@ const slotSymbols = ["7", "♥", "★", "♦", "✦", "☾"];
 const prizeOptions = ["Masaje", "Helado", "Cuidado Facial", "Mandocas"];
 type GameState = { date: string; attempts: number; prizes: string[] };
 
+function randomIndex(length: number) {
+  // Reject the remainder so every option has exactly the same probability.
+  const range = 2 ** 32;
+  const limit = range - (range % length);
+  const value = new Uint32Array(1);
+  do {
+    window.crypto.getRandomValues(value);
+  } while (value[0] >= limit);
+  return value[0] % length;
+}
+
 function readGameState(): GameState {
   const today = new Date().toISOString().slice(0, 10);
   const saved = window.localStorage.getItem("belvan-slot-game");
   const parsed = saved ? JSON.parse(saved) as GameState : null;
-  const productionResetKey = "belvan-slot-game-production-reset-v1";
-  if (window.localStorage.getItem(productionResetKey) !== "done") {
-    const cleanState = { date: today, attempts: 3, prizes: [] };
-    window.localStorage.setItem(productionResetKey, "done");
-    window.localStorage.setItem("belvan-slot-game", JSON.stringify(cleanState));
-    return cleanState;
-  }
   return parsed?.date === today ? parsed : { date: today, attempts: 3, prizes: parsed?.prizes ?? [] };
 }
 
@@ -270,12 +274,17 @@ export default function Home() {
   }, []);
 
   const spin = () => {
-    if (isSpinning || gameState.attempts <= 0 || gameState.prizes.length === prizeOptions.length) return;
+    if (isSpinning) return;
+    // Read the latest history, including prizes won in another tab or yesterday.
+    const currentState = readGameState();
+    setGameState(currentState);
+    const availablePrizes = prizeOptions.filter((prize) => !currentState.prizes.includes(prize));
+    if (currentState.attempts <= 0 || availablePrizes.length === 0) return;
     setIsSpinning(true);
     setWonPrize(null);
     setAttemptsExhausted(false);
     playCasinoTone(180, 0.18);
-    const nextReels = Array.from({ length: 3 }, () => slotSymbols[Math.floor(Math.random() * slotSymbols.length)]);
+    const nextReels = Array.from({ length: 3 }, () => slotSymbols[randomIndex(slotSymbols.length)]);
     let ticks = 0;
     const reelTimer = window.setInterval(() => {
       ticks += 1;
@@ -286,12 +295,11 @@ export default function Home() {
       window.clearInterval(reelTimer);
       setReels([nextReels[0], nextReels[1], nextReels[2]]);
       playCasinoTone(330, 0.16);
-      const nextState = { ...gameState, attempts: gameState.attempts - 1 };
+      const nextState = { ...currentState, attempts: currentState.attempts - 1 };
       const isWinner = nextReels.every((symbol) => symbol === nextReels[0]);
       if (isWinner) {
-        const availablePrizes = prizeOptions.filter((prize) => !gameState.prizes.includes(prize));
-        const prize = availablePrizes[Math.floor(Math.random() * availablePrizes.length)];
-        nextState.prizes = [...gameState.prizes, prize];
+        const prize = availablePrizes[randomIndex(availablePrizes.length)];
+        nextState.prizes = [...currentState.prizes, prize];
         setWonPrize(prize);
         playWinCelebration();
         playApplauseBurst();
@@ -327,7 +335,7 @@ export default function Home() {
 
       <section className="chapter moments-chapter" id="chapter-2"><div className="section-heading"><p className="eyebrow">Capítulo 02</p><h2>Momentos que<br /><em>no quiero olvidar</em></h2></div><div className="moments-gallery"><img src={momentPhotoPaths[momentSlide]} alt={momentCaptions[momentSlide]} /><div className="moments-caption"><span>{String(momentSlide + 1).padStart(2, "0")} / {String(momentPhotoPaths.length).padStart(2, "0")}</span><p>{momentCaptions[momentSlide]}</p></div><button className="moments-arrow moments-prev" onClick={() => setMomentSlide((current) => (current - 1 + momentPhotoPaths.length) % momentPhotoPaths.length)} aria-label="Momento anterior">←</button><button className="moments-arrow moments-next" onClick={() => setMomentSlide((current) => (current + 1) % momentPhotoPaths.length)} aria-label="Momento siguiente">→</button></div><ChapterFooter current={2} onNext={() => goTo(2)} total={5} /></section>
 
-      <section className="chapter slot-chapter" id="chapter-3"><div className="section-heading"><p className="eyebrow">Capítulo 03</p><h2>La ruleta de<br /><em>la suerte</em></h2></div><div className="slot-machine"><div className="slot-topline"><span>♥ BELVAN JACKPOT ♥</span><strong>777</strong></div><div className="slot-reels">{reels.map((symbol, index) => <div className={`slot-reel ${isSpinning ? "is-spinning" : ""}`} key={index}><span>{symbol}</span></div>)}</div><div className="slot-lights"><i /><i /><i /><i /><i /></div><button className="spin-button" onClick={spin} disabled={isSpinning || gameState.attempts <= 0 || gameState.prizes.length === prizeOptions.length}>{gameState.prizes.length === prizeOptions.length ? "Premios completos" : isSpinning ? "Girando..." : "Jugar"}</button></div><div className="game-status"><strong>{gameState.attempts}</strong><span>intentos restantes hoy</span></div><div className="prize-board"><span className="prize-label">Premios desbloqueados</span>{prizeOptions.map((prize) => <span className={`prize-chip ${gameState.prizes.includes(prize) ? "is-won" : ""}`} key={prize}>{gameState.prizes.includes(prize) ? "✓ " : "○ "}{prize}</span>)}</div>{wonPrize ? <div className="win-modal" role="dialog" aria-modal="true"><div className="celebration-fireworks" aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <i className="firework" key={index} />)}</div><div className="win-modal-card"><button className="modal-close" onClick={() => { if (celebrationTimerRef.current !== null) window.clearInterval(celebrationTimerRef.current); setWonPrize(null); }} aria-label="Cerrar felicitación">×</button><span className="win-spark">✦</span><p className="eyebrow">Premio desbloqueado</p><h3>¡Felicidades!</h3><p>Los tres símbolos coincidieron.</p><strong>Ganaste: {wonPrize}</strong><button className="modal-action" onClick={() => { if (celebrationTimerRef.current !== null) window.clearInterval(celebrationTimerRef.current); setWonPrize(null); }}>Guardar mi premio</button></div></div> : attemptsExhausted ? <div className="win-modal" role="dialog" aria-modal="true"><div className="win-modal-card"><button className="modal-close" onClick={() => setAttemptsExhausted(false)} aria-label="Cerrar mensaje">×</button><span className="win-spark">♡</span><p className="eyebrow">Fin de la jugada</p><h3>Gracias por intentarlo</h3><p>Vuelve mañana para aumentar tus posibilidades de ganar.</p><button className="modal-action" onClick={() => setAttemptsExhausted(false)}>Cerrar</button></div></div> : null}<ChapterFooter current={3} onNext={() => goTo(3)} /></section>
+      <section className="chapter slot-chapter" id="chapter-3"><div className="section-heading"><p className="eyebrow">Capítulo 03</p><h2>La ruleta de<br /><em>la suerte</em></h2></div><div className="slot-machine"><div className="slot-topline"><span>♥ BELVAN JACKPOT ♥</span><strong>777</strong></div><div className="slot-reels">{reels.map((symbol, index) => <div className={`slot-reel ${isSpinning ? "is-spinning" : ""}`} key={index}><span>{symbol}</span></div>)}</div><div className="slot-lights"><i /><i /><i /><i /><i /></div><button className="spin-button" onClick={spin} disabled={isSpinning || gameState.attempts <= 0 || gameState.prizes.length === prizeOptions.length}>{gameState.prizes.length === prizeOptions.length ? "Premios completos" : isSpinning ? "Girando..." : "Jugar"}</button></div><div className="game-status"><strong>{gameState.attempts}</strong><span>intentos restantes hoy</span></div><div className="prize-board" aria-live="polite"><span className="prize-label">Tus premios</span>{prizeOptions.map((prize) => <span className={`prize-chip ${gameState.prizes.includes(prize) ? "is-won" : ""}`} key={prize}><span>{gameState.prizes.includes(prize) ? "✓ " : "○ "}{prize}</span><span className="prize-status">{gameState.prizes.includes(prize) ? "Premio Ganado" : "Por ganar"}</span></span>)}</div>{wonPrize ? <div className="win-modal" role="dialog" aria-modal="true"><div className="celebration-fireworks" aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <i className="firework" key={index} />)}</div><div className="win-modal-card"><button className="modal-close" onClick={() => { if (celebrationTimerRef.current !== null) window.clearInterval(celebrationTimerRef.current); setWonPrize(null); }} aria-label="Cerrar felicitación">×</button><span className="win-spark">✦</span><p className="eyebrow">Premio desbloqueado</p><h3>¡Felicidades!</h3><p>Los tres símbolos coincidieron.</p><strong>Ganaste: {wonPrize}</strong><button className="modal-action" onClick={() => { if (celebrationTimerRef.current !== null) window.clearInterval(celebrationTimerRef.current); setWonPrize(null); }}>Guardar mi premio</button></div></div> : attemptsExhausted ? <div className="win-modal" role="dialog" aria-modal="true"><div className="win-modal-card"><button className="modal-close" onClick={() => setAttemptsExhausted(false)} aria-label="Cerrar mensaje">×</button><span className="win-spark">♡</span><p className="eyebrow">Fin de la jugada</p><h3>Gracias por intentarlo</h3><p>Vuelve mañana para aumentar tus posibilidades de ganar.</p><button className="modal-action" onClick={() => setAttemptsExhausted(false)}>Cerrar</button></div></div> : null}<ChapterFooter current={3} onNext={() => goTo(3)} /></section>
 
       <section className="chapter universe-chapter" id="chapter-5"><div className="section-heading"><p className="eyebrow">Capítulo 05</p><h2>En otros universos<br /><em>también te elegiría</em></h2></div><div className="future-upload"><PhotoUpload multiple label="Agregar más recuerdos" detail="Puedes elegir varias fotos" onChange={(event) => { handleFiles(event, setUniversePhotos); setUniverseSlide(universePhotoPaths.length); }} /></div><div className="universe-carousel" onTouchStart={(event) => { event.currentTarget.dataset.startX = String(event.touches[0].clientX); }} onTouchEnd={(event) => { const startX = Number(event.currentTarget.dataset.startX); const distance = event.changedTouches[0].clientX - startX; if (Math.abs(distance) > 45) setUniverseSlide((current) => Math.min(Math.max(current + (distance < 0 ? 1 : -1), 0), universeGallery.length - 1)); }}><button className="carousel-arrow carousel-prev" onClick={() => setUniverseSlide((current) => (current - 1 + universeGallery.length) % universeGallery.length)} aria-label="Foto anterior">←</button><img src={universeGallery[universeSlide]} alt={universeCaptions[universeSlide] ?? `Recuerdo ${universeSlide + 1} de nuestra historia`} /><button className="carousel-arrow carousel-next" onClick={() => setUniverseSlide((current) => (current + 1) % universeGallery.length)} aria-label="Foto siguiente">→</button><div className="carousel-caption"><span>{String(universeSlide + 1).padStart(2, "0")} / {String(universeGallery.length).padStart(2, "0")}</span><p>{universeCaptions[universeSlide] ?? "Un recuerdo más de nosotros"}</p></div></div><div className="carousel-dots" aria-label="Seleccionar foto">{universeGallery.map((url, index) => <button key={url} className={index === universeSlide ? "is-active" : ""} onClick={() => setUniverseSlide(index)} aria-label={`Ver foto ${index + 1}`} />)}</div><ChapterFooter current={5} onNext={() => goTo(5)} total={6} /></section>
 
